@@ -1,2 +1,2 @@
 # lib32
-The Artix multilib repo
+The artix multilib repository
