@@ -15,7 +15,7 @@ makedepends=('gcc-multilib' 'lib32-util-linux' 'gobject-introspection' 'gperf' '
 provides=("lib32-udev=${_udevver}")
 options=(!makeflags !libtool)
 source=("$pkgname-$pkgver.tar.gz::https://github.com/gentoo/eudev/archive/v${pkgver}.tar.gz")
-sha256sums=('80628191448886846ab9cc0e2af6782358a0afb81d5b4f8cd9d982d2626cca31')
+sha256sums=('a68871be55aecb977ae4a206b5ce5a868a722e025f37387d1a702a409933bbeb')
 
 build() {
     export CC="gcc -m32"
