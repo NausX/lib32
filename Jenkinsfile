@@ -6,8 +6,17 @@ pipeline {
                 sh '''
                     GIT_COMMIT=$(git rev-parse HEAD)
                     GIT_COMMIT_FILES=$(git show --pretty=format: --name-only ${GIT_COMMIT})
-                    echo "GIT_COMMIT_FILES: ${GIT_COMMIT_FILES[@]}"
-                    REPO='lib32'
+                    PACKAGE=none
+                    for f in ${GIT_COMMIT_FILES[@]};do
+                        if [[ "$f" == */PKGBUILD ]];then
+                            PACKAGE=${f%/PKGBUILD}
+                        fi
+                    done
+                    echo ${PACKAGE} > package.txt
+                    case ${PACKAGE} in
+                        'llvm') REPO='world' ;;
+                        *) REPO='lib32' ;;
+                    esac
                     case ${BRANCH_NAME} in
                         'testing'|'staging')
                             REPO=${REPO}-${BRANCH_NAME}
@@ -23,15 +32,6 @@ pipeline {
                     esac
                     echo ${BUILDPKG} > cmd.txt
                     echo ${REPO} > repo.txt
-                    PACKAGE=none
-                    for f in ${GIT_COMMIT_FILES[@]};do
-                        echo "tracked changed file: $f"
-                        if [[ "$f" == */PKGBUILD ]];then
-                            PACKAGE=${f%/PKGBUILD}
-                            echo ${PACKAGE}
-                        fi
-                    done
-                    echo ${PACKAGE} > package.txt
                 '''
             }
         }
@@ -43,13 +43,13 @@ pipeline {
             }
             steps {
                 sh '''
-                    ${BUILDPKG} -p ${PACKAGE} -z ${REPO} -a multilib
+                    ${BUILDPKG} -p ${PACKAGE} -z ${REPO}
                 '''
             }
             post {
                 success {
                     sh '''
-                        deploypkg -x -p ${PACKAGE} -r ${REPO}
+                        deploypkg -x -p ${PACKAGE} -r ${_REPO}
                     '''
                 }
             }
