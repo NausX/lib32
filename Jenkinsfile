@@ -13,10 +13,7 @@ pipeline {
                         fi
                     done
                     echo ${PACKAGE} > package.txt
-                    case ${PACKAGE} in
-                        'llvm') REPO='world' ;;
-                        *) REPO='lib32' ;;
-                    esac
+                    REPO='lib32'
                     case ${BRANCH_NAME} in
                         'testing'|'staging')
                             REPO=${REPO}-${BRANCH_NAME}
@@ -49,6 +46,15 @@ pipeline {
             post {
                 success {
                     sh '''
+                        case ${PACKAGE} in
+                            'llvm')
+                                case ${BRANCH_NAME} in
+                                    'testing'|'staging') _REPO=world-${BRANCH_NAME} ;;
+                                    'master') _REPO='world' ;;
+                                esac
+                            ;;
+                            *) _REPO=${REPO} ;;
+                        esac
                         deploypkg -x -p ${PACKAGE} -r ${_REPO}
                     '''
                 }
