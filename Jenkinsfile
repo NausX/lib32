@@ -40,7 +40,7 @@ pipeline {
             }
             steps {
                 sh '''
-                    ${BUILDPKG} -p ${PACKAGE} -z ${REPO}
+                    ${BUILDPKG} -p ${PACKAGE} -z ${REPO} -a multilib
                 '''
             }
             post {
