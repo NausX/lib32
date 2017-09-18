@@ -10,7 +10,7 @@ pkgrel=2
 arch=('x86_64')
 url="http://www.gentoo.org/proj/en/eudev/"
 license=('GPL')
-depends=('lib32-glib2' 'lib32-glibc' 'libsystemd-dummy')
+depends=('lib32-glib2' 'lib32-glibc')
 makedepends=('gcc-multilib' 'lib32-util-linux' 'gobject-introspection' 'gperf' 'python2' 'gtk-doc' 'lib32-kmod')
 provides=("lib32-udev=${_udevver}")
 options=(!makeflags !libtool)
