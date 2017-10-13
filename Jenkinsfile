@@ -1,57 +1,125 @@
+def REPO = 'lib32'
+def PACKAGES = []
+
 pipeline {
     agent any
+    options {
+        skipDefaultCheckout true
+    }
     stages {
-        stage('Prepare') {
+        stage('Checkout') {
             steps {
-                sh '''
-                    GIT_COMMIT=$(git rev-parse HEAD)
-                    GIT_COMMIT_FILES=$(git show --pretty=format: --name-only ${GIT_COMMIT})
-                    echo "GIT_COMMIT_FILES: ${GIT_COMMIT_FILES[@]}"
-                    REPO='lib32'
-                    case ${BRANCH_NAME} in
-                        'testing'|'staging')
-                            REPO=${REPO}-${BRANCH_NAME}
-                            BUILDPKG="buildpkg-${BRANCH_NAME}"
-                        ;;
-                        'master')
-                            BUILDPKG="buildpkg"
-                        ;;
-                        PR-*)
-                            REPO=${REPO}-testing
-                            BUILDPKG="buildpkg-testing"
-                        ;;
-                    esac
-                    echo ${BUILDPKG} > cmd.txt
-                    echo ${REPO} > repo.txt
-                    PACKAGE=none
-                    for f in ${GIT_COMMIT_FILES[@]};do
-                        echo "tracked changed file: $f"
-                        if [[ "$f" == */PKGBUILD ]];then
-                            PACKAGE=${f%/PKGBUILD}
-                            echo ${PACKAGE}
-                        fi
-                    done
-                    echo ${PACKAGE} > package.txt
-                '''
+                script {
+                    def scmVars = checkout scm
+
+                    def commit = scmVars.GIT_COMMIT
+                    def commit_previous = scmVars.GIT_PREVIOUS_COMMIT
+                    def commit_previous_successful = scmVars.GIT_PREVIOUS_SUCCESSFUL_COMMIT
+
+                    def commit_previous_merge = sh(returnStdout: true, script: 'git log --merges --oneline --format=format:%H -n 1').trim()
+
+                    echo "commit: ${commit}"
+                    echo "commit_previous: ${commit_previous}"
+                    echo "commit_previous_successful: ${commit_previous_successful}"
+                    echo "commit_previous_merge: ${commit_previous_merge}"
+
+                    def isMove = 'false'
+                    if ( BRANCH_NAME == 'master' ) {
+                        if ( commit == commit_previous_merge ) {
+                            isMove = 'true'
+                        }
+                    }
+                    echo "isMove: ${isMove}"
+                    writeFile file: 'isMove.txt', text: isMove
+                }
             }
         }
-        stage('Build') {
+        stage('Prepare') {
+            steps {
+                script {
+                    def changeLogSets = currentBuild.changeSets
+                    for (int i = 0; i < changeLogSets.size(); i++) {
+                        def entries = changeLogSets[i].items
+                        for (int j = 0; j < entries.length; j++) {
+                            def entry = entries[j]
+                            echo "${entry.commitId} by ${entry.author} on ${new Date(entry.timestamp)}: ${entry.msg}"
+                            def files = new ArrayList(entry.affectedFiles)
+                            for (int k = 0; k < files.size(); k++) {
+                                def file = files[k]
+                                echo "${file.path}"
+                                if ( file.path.contains('PKGBUILD') ){
+                                    def pkg = file.path.minus('/PKGBUILD')
+                                    PACKAGES << pkg
+                                }
+                            }
+                        }
+                    }
+                    echo "PACKAGES: ${PACKAGES}"
+                }
+            }
+        }
+        stage('Stable') {
             environment {
-                BUILDPKG = readFile('cmd.txt')
-                REPO = readFile('repo.txt')
-                PACKAGE = readFile('package.txt')
+                BUILDBOT_GPGP = credentials('BUILDBOT_GPGP')
+            }
+            when {
+                branch 'master'
+                expression { return readFile('isMove.txt').contains('false') }
             }
             steps {
-                sh '''
-                    ${BUILDPKG} -p ${PACKAGE} -z ${REPO} -a multilib
-                '''
+                echo "PACKAGES: ${PACKAGES}"
+                script {
+                    for (pkg in PACKAGES) {
+                        sh "buildpkg -p ${pkg} -z ${REPO}"
+                    }
+                }
             }
             post {
                 success {
-                    sh '''
-                        deploypkg -x -p ${PACKAGE} -r ${REPO}
-                    '''
+                    script {
+                        for (pkg in PACKAGES) {
+                            sh "deploypkg -x -p ${pkg} -r ${REPO}"
+                        }
+                    }
                 }
+            }
+        }
+        stage('Testing') {
+            environment {
+                BUILDBOT_GPGP = credentials('BUILDBOT_GPGP')
+            }
+            when {
+                anyOf {
+                    branch 'testing'
+                    branch 'PR*'
+                }
+                expression { return readFile('isMove.txt').contains('false') }
+            }
+            steps {
+                echo "PACKAGES: ${PACKAGES}"
+                script {
+                    for (pkg in PACKAGES) {
+                        sh "buildpkg-testing -p ${pkg} -z ${REPO}-testing"
+                    }
+                }
+            }
+            post {
+                success {
+                    script {
+                        for (pkg in PACKAGES) {
+                            sh "deploypkg -x -p ${pkg} -r ${REPO}-testing"
+                        }
+                    }
+                }
+            }
+        }
+        stage('Move') {
+            when {
+                branch 'master'
+                expression { return readFile('isMove.txt').contains('true') }
+            }
+            steps {
+                sh "deploypkg -m -r ${REPO}-testing -t ${REPO}"
             }
         }
     }
