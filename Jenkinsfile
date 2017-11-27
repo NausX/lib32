@@ -95,7 +95,7 @@ pipeline {
                 echo "PACKAGES: ${PACKAGES}"
                 script {
                     for (pkg in PACKAGES) {
-                        sh "buildpkg -p ${pkg} -z ${REPO} -a lib32"
+                        sh "buildpkg -p ${pkg} -z ${REPO}"
                     }
                 }
             }
@@ -124,7 +124,7 @@ pipeline {
                 echo "PACKAGES: ${PACKAGES}"
                 script {
                     for (pkg in PACKAGES) {
-                        sh "buildpkg-testing -p ${pkg} -z ${REPO}-testing -a lib32"
+                        sh "buildpkg-testing -p ${pkg} -z ${REPO}-testing"
                     }
                 }
             }
